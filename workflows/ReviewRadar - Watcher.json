@@ -1,0 +1,967 @@
+{
+  "name": "ReviewRadar - Watcher",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze this review and return ONLY JSON.\n\nReviewer Name: {{ $json['Reviewer Name'] }}\nRating: {{$json[\"Rating\"]}}\nReview Text: {{$json[\"Review Text\"]}}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are a review analyst for a local business owner.  Analyze this customer review and return ONLY a valid JSON object with these exact fields: {   \"sentiment\": \"positive\" | \"neutral\" | \"negative\",   \"category\": \"Service\" | \"Food\" | \"Price\" | \"Wait Time\" | \"Cleanliness\" | \"Staff\" | \"Other\",   \"urgency\": <integer 1-5>,   \"draft_response\": \"<professional 2-sentence owner response addressing the reviewer by name if available>\" }  Urgency scoring: 5 = Mentions health/safety issue, threatens legal action, or is extremely hostile 4 = Strong complaint, multiple issues mentioned, rating 1-star 3 = Moderate complaint, rating 2-3 stars 2 = Mixed review, rating 3 stars 1 = Positive or mild, rating 4-5 stars  Return ONLY the JSON object. No extra text."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -224,
+        160
+      ],
+      "id": "4262de33-ccc9-4736-9120-eca5b5e3eb7c",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -160,
+        384
+      ],
+      "id": "5109a15d-3bf5-4780-87f1-e98384f67113",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "OSaTfNCOWIC6T282",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items.map((item) => {\n  const raw = item.json.text;\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n\n  return {\n    json: {\n      ...item.json,\n      ...parsed\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        -144
+      ],
+      "id": "4068b897-d3a7-4209-af37-80f7c89d8dde",
+      "name": "AI Data Cleanup"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -160,
+        -144
+      ],
+      "id": "eb9c286d-71da-4ade-ace2-fa40f6766b21",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.Rating }}",
+                    "rightValue": 2,
+                    "operator": {
+                      "type": "number",
+                      "operation": "lte"
+                    },
+                    "id": "8569d967-1675-41e6-b6a8-d2aa862b4259"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "8f24e72f-d23b-4b43-9cff-54049053fac7",
+                    "leftValue": "={{ $json.Rating }}",
+                    "rightValue": 3,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "8d952bab-01cd-426a-b48e-3f87c348ca61",
+                    "leftValue": "={{ $json.Rating }}",
+                    "rightValue": 4,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gte"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        352,
+        -160
+      ],
+      "id": "10fa6ec2-f76e-4b6e-b7f5-1e0cc5cc7d59",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => ({\n  json: {\n    message: \"URGENT REVIEW DETECTED\",\n    reviewer: item.json[\"Reviewer Name\"],\n    rating: item.json[\"Rating\"]\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        576,
+        -240
+      ],
+      "id": "94069b3e-2e0c-462d-b7d3-0fde4ea09b2a",
+      "name": "Urgent Review Cleanup"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1_KybKUhROBpTDkzdwNvL3MHL7ZXRVkNkKXp2-qMS-M0",
+          "mode": "list",
+          "cachedResultName": "ReviewRadar-Sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_KybKUhROBpTDkzdwNvL3MHL7ZXRVkNkKXp2-qMS-M0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1,
+          "mode": "list",
+          "cachedResultName": "Testimonials",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_KybKUhROBpTDkzdwNvL3MHL7ZXRVkNkKXp2-qMS-M0/edit#gid=1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Reviewer Name": "={{ $json[\"Reviewer Name\"] }}",
+            "Rating": "={{ $json.Rating }}",
+            "Review Text": "={{ $json[\"Review Text\"] }}",
+            "Date": "={{ $json.Date }}",
+            "Category": "={{ $json.category }}",
+            "Business Name": "={{ $json[\"Business Name\"] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Reviewer Name",
+              "displayName": "Reviewer Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Business Name",
+              "displayName": "Business Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Rating",
+              "displayName": "Rating",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Review Text",
+              "displayName": "Review Text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        576,
+        144
+      ],
+      "id": "64c28696-5594-4133-bea0-a31707ce2876",
+      "name": "Testimonials",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Ud2BUA6JbcDAUUQU",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1_KybKUhROBpTDkzdwNvL3MHL7ZXRVkNkKXp2-qMS-M0",
+          "mode": "list",
+          "cachedResultName": "ReviewRadar-Sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_KybKUhROBpTDkzdwNvL3MHL7ZXRVkNkKXp2-qMS-M0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "All Reviews",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_KybKUhROBpTDkzdwNvL3MHL7ZXRVkNkKXp2-qMS-M0/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Reviewer Name": "={{ $json['Reviewer Name'] }}",
+            "Processed At": "={{$now}}",
+            "Rating": "={{ $json.Rating }}",
+            "Review Text": "={{ $json['Review Text'] }}",
+            "Date": "={{ $json.Date }}",
+            "Sentiment": "={{ $json.sentiment }}",
+            "Category": "={{ $json.category }}",
+            "Urgency": "={{ $json.urgency }}",
+            "Draft Response": "={{ $json.draft_response }}",
+            "Review ID": "={{$json[\"Review ID\"]}}",
+            "Business Name": "={{ $json[\"Business Name\"] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Reviewer Name",
+              "displayName": "Reviewer Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Business Name",
+              "displayName": "Business Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Rating",
+              "displayName": "Rating",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Review Text",
+              "displayName": "Review Text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sentiment",
+              "displayName": "Sentiment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Urgency",
+              "displayName": "Urgency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Draft Response",
+              "displayName": "Draft Response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Processed At",
+              "displayName": "Processed At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Review ID",
+              "displayName": "Review ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        576,
+        -48
+      ],
+      "id": "2b5f95f4-e4c8-40cd-9281-6dc27d0b4333",
+      "name": "All Reviews",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Ud2BUA6JbcDAUUQU",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1568,
+        16
+      ],
+      "id": "116a3374-66e3-48f0-938b-47b3642b4111",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => ({\n  json: {\n    key: `${item.json[\"Reviewer Name\"]}_${item.json[\"Date\"]}`\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1120,
+        -96
+      ],
+      "id": "b90e21d4-8be5-4145-9144-dcb72d3a4d7f",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "jsCode": "const existingIds = new Set(\n  $('All Reviews Read').all()\n    .map(item => item.json[\"Review ID\"])\n    .filter(Boolean)\n);\n\nreturn $input.all().filter(item => {\n  const id = item.json[\"Review ID\"];\n  return id && !existingIds.has(id);\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -672,
+        112
+      ],
+      "id": "3550453f-c5c1-4d72-b4fc-1885cfd8faec",
+      "name": "Dedupe Code"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      \"Reviewer Name\": \"Zara\",\n      \"Rating\": 1,\n      \"Review Text\": \"Terrible service and very rude staff\",\n      \"Date\": \"2026-06-02\"\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1568,
+        608
+      ],
+      "id": "86fa112c-3086-4738-9b14-f87bfdd8994f",
+      "name": "SERP Replica Testing"
+    },
+    {
+      "parameters": {
+        "url": "https://serpapi.com/search.json",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "engine",
+              "value": "google_maps_reviews"
+            },
+            {
+              "name": "api_key",
+              "value": "267cadc1d3058a7ea1b3c5f1ab5a9b0a5163ef311d3365c8b3028e3bd11e4e18"
+            },
+            {
+              "name": "data_id",
+              "value": "={{$json[\"Data ID\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1120,
+        112
+      ],
+      "id": "a9256ffd-1b51-4bc7-9db5-d620cebf7e8a",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "url": "https://serpapi.com/search.json",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "engine",
+              "value": "google_maps"
+            },
+            {
+              "name": "api_key",
+              "value": "267cadc1d3058a7ea1b3c5f1ab5a9b0a5163ef311d3365c8b3028e3bd11e4e18"
+            },
+            {
+              "name": "q",
+              "value": "Cozy Restaurant Mehsana Gujarat"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1568,
+        832
+      ],
+      "id": "7b24a496-954b-45db-9512-713c832c3c3f",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1_KybKUhROBpTDkzdwNvL3MHL7ZXRVkNkKXp2-qMS-M0",
+          "mode": "list",
+          "cachedResultName": "ReviewRadar-Sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_KybKUhROBpTDkzdwNvL3MHL7ZXRVkNkKXp2-qMS-M0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "All Reviews",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_KybKUhROBpTDkzdwNvL3MHL7ZXRVkNkKXp2-qMS-M0/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1344,
+        -96
+      ],
+      "id": "769701df-fd51-4c24-9765-57f3590d8ada",
+      "name": "All Reviews Read",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Ud2BUA6JbcDAUUQU",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1_KybKUhROBpTDkzdwNvL3MHL7ZXRVkNkKXp2-qMS-M0",
+          "mode": "list",
+          "cachedResultName": "ReviewRadar-Sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_KybKUhROBpTDkzdwNvL3MHL7ZXRVkNkKXp2-qMS-M0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1858317814,
+          "mode": "list",
+          "cachedResultName": "Businesses",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_KybKUhROBpTDkzdwNvL3MHL7ZXRVkNkKXp2-qMS-M0/edit#gid=1858317814"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1344,
+        112
+      ],
+      "id": "adfb7920-d189-4908-94d7-32683bb4c170",
+      "name": "Businesses List",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Ud2BUA6JbcDAUUQU",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "batchSize": 2,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -448,
+        256
+      ],
+      "id": "77eed52b-b0e1-4360-9daa-7e6e914b3602",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        128,
+        384
+      ],
+      "id": "c4e8d1e8-2c1d-4181-8cf7-1189a6760243",
+      "name": "Wait",
+      "webhookId": "dfc2acec-16e7-4513-afec-0a03de9ebcd6"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst output = [];\n\nfor (const item of items) {\n  const data = item.json;\n  const reviews = data.reviews || [];\n  const businessName = data.place_info?.title || \"\";\n  const dataId = data.search_parameters?.data_id || \"\";\n\n  for (const r of reviews) {\n    output.push({\n      json: {\n        \"Business Name\": businessName,\n        \"Business Data ID\": dataId,\n        \"Reviewer Name\": r.user?.name ?? \"\",\n        \"Rating\": r.rating ?? null,\n        \"Review Text\": r.snippet ?? \"\",\n        \"Date\": r.iso_date ? r.iso_date.slice(0, 10) : (r.date ?? \"\"),\n        \"Review ID\": r.review_id ?? \"\"\n      }\n    });\n  }\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -896,
+        112
+      ],
+      "id": "cd182016-503f-4796-938f-0cde4ce7e21e",
+      "name": "Review Cleaner"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#review-alerts"
+        },
+        "text": "=🚨 *New Negative Review Alert*\n\n*🏢 Business:* {{ $('AI Data Cleanup').item.json[\"Business Name\"] }}\n\n*⭐ Rating:* {{ $('AI Data Cleanup').item.json.Rating }}/5\n\n*👤 Reviewer:* {{ $('AI Data Cleanup').item.json[\"Reviewer Name\"] }}\n\n*📅 Date:* {{ $('AI Data Cleanup').item.json.Date }}\n\n*🏷️ Category:* {{ $('AI Data Cleanup').item.json.category }}\n\n*⚠️ Urgency:* {{ $('AI Data Cleanup').item.json.urgency }}\n\n*📝 Review:*\n\n> {{ $('AI Data Cleanup').item.json[\"Review Text\"].replace(/\\n/g, '\\n> ') }}\n\n*💬 Suggested Response:*\n\n> {{ $('AI Data Cleanup').item.json.draft_response.replace(/\\n/g, '\\n> ') }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        800,
+        -432
+      ],
+      "id": "807de0f8-b2f8-41d1-946c-19b0d508ac15",
+      "name": "Slack Notification",
+      "webhookId": "ffd18fba-aea0-4f48-b471-12d240d5c76c",
+      "credentials": {
+        "slackApi": {
+          "id": "1mcqDZK80zg3apiy",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "sucksenapavanhacker@gmail.com",
+        "subject": "=URGENT Review Alert - {{$json[\"reviewer\"]}}",
+        "message": "={{$json[\"message\"]}} - Rating: {{$json[\"rating\"]}}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        -240
+      ],
+      "id": "49d89d0c-22da-48b1-9c6b-743ae0ca535f",
+      "name": "Email Notification",
+      "webhookId": "7f1d9fe2-af50-4605-9f6e-c6bce261290d",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "A6FFkfQS7MjEIIdC",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "from": "+14155238886",
+        "to": "=+917984275865",
+        "toWhatsapp": true,
+        "message": "=🚨 ReviewRadar Alert  Business: \n\n*🏢 Business:* {{ $('AI Data Cleanup').item.json[\"Business Name\"] }}\n\n*⭐ Rating:* {{ $('AI Data Cleanup').item.json.Rating }}\n\n*👤 Reviewer:* {{ $('AI Data Cleanup').item.json[\"Reviewer Name\"] }}\n\n*📅 Date:* {{ $('AI Data Cleanup').item.json.Date }}\n\n*🏷️ Category:* {{ $('AI Data Cleanup').item.json.category }}\n\n*⚠️ Urgency:* {{ $('AI Data Cleanup').item.json.urgency }}\n\n*📝 Review:*\n\n> {{ $('AI Data Cleanup').item.json[\"Review Text\"].replace(/\\n/g, '\\n> ').slice(0,250) }}\n\n*💬 Suggested Response:*\n\n> {{ $('AI Data Cleanup').item.json.draft_response.replace(/\\n/g, '\\n> ') }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        800,
+        -48
+      ],
+      "id": "122dfb71-1b76-4b38-a0cc-017e40a61a75",
+      "name": "WhatsApp message",
+      "credentials": {
+        "twilioApi": {
+          "id": "aUow19ZRMERawHJT",
+          "name": "Twilio account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "AI Data Cleanup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Data Cleanup": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "All Reviews",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Urgent Review Cleanup",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "All Reviews",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Testimonials",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "All Reviews",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Urgent Review Cleanup": {
+      "main": [
+        [
+          {
+            "node": "Slack Notification",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email Notification",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WhatsApp message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "All Reviews Read",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Businesses List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SERP Replica Testing": {
+      "main": [
+        []
+      ]
+    },
+    "Dedupe Code": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Review Cleaner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "All Reviews Read": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Businesses List": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Review Cleaner": {
+      "main": [
+        [
+          {
+            "node": "Dedupe Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Notification": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "13c8f2ac-9ce9-4c0a-9268-7a8079f4ab8f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "baa113419c606e36378168ae659b71b09b58fe0d79a3be90bb170cc1c0b4adaf"
+  },
+  "id": "NYtDjLXXa0CmAzgn",
+  "tags": []
+}

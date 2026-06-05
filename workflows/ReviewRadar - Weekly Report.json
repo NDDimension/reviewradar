@@ -1,0 +1,375 @@
+{
+  "name": "ReviewRadar - Weekly Report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -752,
+        0
+      ],
+      "id": "28dc9362-a586-4d39-b36c-2c0953da9511",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are writing a weekly review report for multiple businesses.\n\nUse ONLY the data below. Do not invent any business names or facts.\n\nReturn ONLY valid JSON in this exact shape:\n\n{\n  \"business_reports\": [\n    {\n      \"business_name\": \"string\",\n      \"avg_rating\": number,\n      \"top_complaints\": [\"...\", \"...\", \"...\"],\n      \"top_praise\": [\"...\", \"...\", \"...\"],\n      \"recommendation\": \"one specific actionable sentence\"\n    }\n  ]\n}\n\nData:\n{{ JSON.stringify($json.business_summaries, null, 2) }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You are writing a weekly review report for multiple businesses.  Use ONLY the data below. Do not invent any business names or facts.  Return ONLY valid JSON in this exact shape:  {   \"business_reports\": [     {       \"business_name\": \"string\",       \"avg_rating\": number,       \"top_complaints\": [\"...\", \"...\", \"...\"],       \"top_praise\": [\"...\", \"...\", \"...\"],       \"recommendation\": \"one specific actionable sentence\"     }   ] }  Data: {{ JSON.stringify($json.business_summaries, null, 2) }}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -80,
+        0
+      ],
+      "id": "52d83d09-4b36-4ccd-9d90-173778551b9e",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -16,
+        224
+      ],
+      "id": "7e22c7db-3719-468f-af72-55a4e54c222b",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "OSaTfNCOWIC6T282",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "sucksenapavanhacker@gmail.com",
+        "subject": "=Weekly Review Report - {{$json.business_name}}",
+        "message": "=<h2><b>Weekly Review Summary - {{$json.business_name}}</b></h2>\n\n<p><b>Average Rating:</b><br>\n{{$json.avg_rating}}</p>\n\n<p><b>Top Complaints:</b></p>\n<ul>\n{{ $json.top_complaints.map(item => `<li>${item}</li>`).join('') }}\n</ul>\n\n<p><b>Top Praise:</b></p>\n<ul>\n{{ $json.top_praise.map(item => `<li>${item}</li>`).join('') }}\n</ul>\n\n<p><b>Recommendation:</b><br>\n{{$json.recommendation}}</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        0
+      ],
+      "id": "76c22dc5-a00a-40d0-9f45-3cd276a9bc88",
+      "name": "Send a message",
+      "webhookId": "3903118e-2d8b-427b-a6e6-c65d86cbf319",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "A6FFkfQS7MjEIIdC",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1_KybKUhROBpTDkzdwNvL3MHL7ZXRVkNkKXp2-qMS-M0",
+          "mode": "list",
+          "cachedResultName": "ReviewRadar-Sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_KybKUhROBpTDkzdwNvL3MHL7ZXRVkNkKXp2-qMS-M0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "All Reviews",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_KybKUhROBpTDkzdwNvL3MHL7ZXRVkNkKXp2-qMS-M0/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -528,
+        0
+      ],
+      "id": "889322c1-4230-4755-9beb-0fd3178fefe9",
+      "name": "Collect \"All Reviews\"",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Ud2BUA6JbcDAUUQU",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(item => item.json);\n\nconst groupMap = {};\n\nfor (const row of rows) {\n  const business = row[\"Business Name\"] || \"Unknown Business\";\n  if (!groupMap[business]) {\n    groupMap[business] = [];\n  }\n  groupMap[business].push(row);\n}\n\nconst businessSummaries = Object.entries(groupMap).map(([business, items]) => {\n  const avgRating =\n    items.reduce((sum, r) => sum + (Number(r[\"Rating\"]) || 0), 0) / items.length;\n\n  const summaryText = items.map(r => {\n    return `- ${r[\"Reviewer Name\"]} | ${r[\"Rating\"]} stars | ${r[\"Review Text\"]} | ${r[\"Date\"]}`;\n  }).join(\"\\n\");\n\n  return {\n    business_name: business,\n    total_reviews: items.length,\n    avg_rating: Number(avgRating.toFixed(2)),\n    summary_text: summaryText,\n    rows: items\n  };\n});\n\nreturn [{\n  json: {\n    total_reviews: rows.length,\n    business_summaries: businessSummaries\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        0
+      ],
+      "id": "828f5c96-d97c-4830-821f-f6e7ab218ab4",
+      "name": "Summarize \"All Reviews\""
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.text || \"\";\nconst clean = raw.replace(/```json|```/g, \"\").trim();\nconst parsed = JSON.parse(clean);\n\nreturn [{\n  json: parsed\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        0
+      ],
+      "id": "2bc7a5a4-f1d6-477a-97bb-43223ee67425",
+      "name": "AI Output Cleaner"
+    },
+    {
+      "parameters": {
+        "jsCode": "const reports = $input.first().json.business_reports || [];\n\nreturn reports.map((report) => ({\n  json: report\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        496,
+        0
+      ],
+      "id": "546e09eb-b92b-4658-8fd6-4f30ce1333be",
+      "name": "Business_Wise Separator"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1_KybKUhROBpTDkzdwNvL3MHL7ZXRVkNkKXp2-qMS-M0",
+          "mode": "list",
+          "cachedResultName": "ReviewRadar-Sheets",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_KybKUhROBpTDkzdwNvL3MHL7ZXRVkNkKXp2-qMS-M0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 7201246,
+          "mode": "list",
+          "cachedResultName": "Weekly Summary",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_KybKUhROBpTDkzdwNvL3MHL7ZXRVkNkKXp2-qMS-M0/edit#gid=7201246"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Avg Rating": "={{ $('Business_Wise Separator').item.json.avg_rating }}",
+            "Top Complaints": "={{ $('Business_Wise Separator').item.json.top_complaints.join(\" | \")}}",
+            "Top Praise": "={{ $('Business_Wise Separator').item.json.top_praise.join(\" | \") }}",
+            "Recommendation": "={{ $('Business_Wise Separator').item.json.recommendation }}",
+            "Week Of": "={{ $now }}",
+            "Business Name": "={{ $('Business_Wise Separator').item.json.business_name }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Business Name",
+              "displayName": "Business Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Week Of",
+              "displayName": "Week Of",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Avg Rating",
+              "displayName": "Avg Rating",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Top Complaints",
+              "displayName": "Top Complaints",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Top Praise",
+              "displayName": "Top Praise",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Recommendation",
+              "displayName": "Recommendation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        944,
+        0
+      ],
+      "id": "552b115a-8b3d-46f1-9f92-14e32c08b22d",
+      "name": "Weekly Report Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Ud2BUA6JbcDAUUQU",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Collect \"All Reviews\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "AI Output Cleaner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect \"All Reviews\"": {
+      "main": [
+        [
+          {
+            "node": "Summarize \"All Reviews\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize \"All Reviews\"": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Output Cleaner": {
+      "main": [
+        [
+          {
+            "node": "Business_Wise Separator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Weekly Report Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Business_Wise Separator": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "69a89e70-02cc-4d5b-ade7-cdb3a2ea3149",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "baa113419c606e36378168ae659b71b09b58fe0d79a3be90bb170cc1c0b4adaf"
+  },
+  "id": "cntIx0t5RdqfrLJJ",
+  "tags": []
+}
